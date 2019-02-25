@@ -21,10 +21,21 @@ object Main {
    * Exercise 2
    */
     def balance(chars: List[Char]): Boolean = {
-      if (chars.isEmpty) return false
-      def findBracket(x: Char, xs: List[Char]): List[Char] = {
-        
+
+
+
+      def reduceBracket(xs:List[Char], res: List[Char]=List()): List[Char] = {
+
+        if(xs.isEmpty) return res
+        if(xs.head == '(') return  reduceBracket(xs.tail, res ++ List(xs.head))
+        if(xs.head == ')' && res.nonEmpty && res.head == '(') return reduceBracket(xs.tail, res.tail)
+        if(xs.head == ')' && res.isEmpty) return reduceBracket(xs.tail, res ++ List(xs.head))
+        reduceBracket(xs.tail, res)
       }
+
+      val x = reduceBracket(chars)
+      println(x)
+      x.isEmpty
     }
   
   /**
