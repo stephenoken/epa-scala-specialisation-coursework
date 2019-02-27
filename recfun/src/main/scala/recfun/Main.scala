@@ -1,6 +1,5 @@
 package recfun
 
-import scala.annotation.tailrec
 
 object Main {
   def main(args: Array[String]) {
@@ -25,12 +24,13 @@ object Main {
     def balance(chars: List[Char]): Boolean = {
 
       def reduceBracket(xs:List[Char], res: List[Char]=List()): List[Char] = {
-
-        if(xs.isEmpty) return res
-        if(xs.head == '(') return  reduceBracket(xs.tail, res ++ List(xs.head))
-        if(xs.head == ')' && res.nonEmpty && res.head == '(') return reduceBracket(xs.tail, res.tail)
-        if(xs.head == ')' && res.isEmpty) return reduceBracket(xs.tail, res ++ List(xs.head))
-        reduceBracket(xs.tail, res)
+        xs match {
+          case Nil => res
+          case '(':: tail => reduceBracket(tail, res ++ List('('))
+          case ')' :: tail if res.nonEmpty && res.head == '(' => reduceBracket(tail, res.tail)
+          case ')' :: tail => reduceBracket(tail, res ++ List('('))
+          case _ => reduceBracket(xs.tail, res)
+        }
       }
 
       reduceBracket(chars).isEmpty
