@@ -1,5 +1,7 @@
 package recfun
 
+import scala.annotation.tailrec
+
 object Main {
   def main(args: Array[String]) {
     println("Pascal's Triangle")
@@ -22,8 +24,6 @@ object Main {
    */
     def balance(chars: List[Char]): Boolean = {
 
-
-
       def reduceBracket(xs:List[Char], res: List[Char]=List()): List[Char] = {
 
         if(xs.isEmpty) return res
@@ -33,13 +33,22 @@ object Main {
         reduceBracket(xs.tail, res)
       }
 
-      val x = reduceBracket(chars)
-      println(x)
-      x.isEmpty
+      reduceBracket(chars).isEmpty
     }
   
   /**
    * Exercise 3
    */
-    def countChange(money: Int, coins: List[Int]): Int = ???
+    def countChange(money: Int, coins: List[Int]): Int = {
+
+      def iterateOverDenominations(money: Int, coins: List[Int], coin: Int): Int = {
+        if(money == 0) return 1
+        if(money < 0 ) return 0
+        if(coins.isEmpty) return iterateOverDenominations(money - coin, coins, coin)
+        iterateOverDenominations(money - coin, coins, coin) +
+          iterateOverDenominations(money, coins.tail, coins.head)
+      }
+
+      iterateOverDenominations(money, coins.tail, coins.head)
+    }
   }
