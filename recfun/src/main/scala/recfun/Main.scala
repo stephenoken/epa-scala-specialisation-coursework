@@ -42,13 +42,15 @@ object Main {
     def countChange(money: Int, coins: List[Int]): Int = {
 
       def iterateOverDenominations(money: Int, coins: List[Int], coin: Int): Int = {
-        if(money == 0) return 1
-        if(money < 0 ) return 0
-        if(coins.isEmpty) return iterateOverDenominations(money - coin, coins, coin)
-        iterateOverDenominations(money - coin, coins, coin) +
+        if(money == 0) 1
+        else if(money < 0 ) 0
+        else if(coins.isEmpty)
+          iterateOverDenominations(money - coin, coins, coin)
+        else
+          iterateOverDenominations(money - coin, coins, coin) +
           iterateOverDenominations(money, coins.tail, coins.head)
       }
-
-      iterateOverDenominations(money, coins.tail, coins.head)
+      if(coins.isEmpty) 0
+      else iterateOverDenominations(money, coins.tail, coins.head)
     }
   }
