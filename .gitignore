@@ -2,5 +2,9 @@
 *.log
 target/
 .idea
-project/
 *.jar
+.cache/
+.history/
+dist/*
+project/boot
+project/plugins/project 
