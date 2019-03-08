@@ -66,8 +66,9 @@ abstract class TweetSet {
     * Question: Should we implment this method here, or should it remain abstract
     * and be implemented in the subclasses?
     */
-  def mostRetweeted: Tweet = ???
+  def mostRetweeted: Tweet
 
+  def isEmpty: Boolean
   /**
     * Returns a list containing all tweets of this set, sorted by retweet count
     * in descending order. In other words, the head of the resulting list should
@@ -77,7 +78,7 @@ abstract class TweetSet {
     * Question: Should we implment this method here, or should it remain abstract
     * and be implemented in the subclasses?
     */
-  def descendingByRetweet: TweetList = ???
+  def descendingByRetweet: TweetList
 
   /**
     * The following methods are already implemented
@@ -109,6 +110,12 @@ abstract class TweetSet {
 
 class Empty extends TweetSet {
 
+  def descendingByRetweet: TweetList = Nil
+
+  def mostRetweeted: Tweet = throw new NoSuchElementException
+
+  def isEmpty = true
+
   def union(that: TweetSet): TweetSet = that
 
   def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = acc
@@ -129,11 +136,22 @@ class Empty extends TweetSet {
 
 class NonEmpty(elem: Tweet, left: TweetSet, right: TweetSet) extends TweetSet {
 
-  def union(that: TweetSet): TweetSet = left union right union that.incl(elem)
+  def descendingByRetweet: TweetList = {
+    val head = this.mostRetweeted
+    val tail = this.remove(head)
+    new Cons(head, tail.descendingByRetweet)
+  }
+  override def mostRetweeted: Tweet = {
+    val moreRetweetedTweetsSet = left.filter(p => p.retweets > elem.retweets) union right.filter(p => p.retweets > elem.retweets)
+    if(moreRetweetedTweetsSet.isEmpty) elem else moreRetweetedTweetsSet.mostRetweeted
+  }
+
+  def isEmpty: Boolean = false
+
+  def union(that: TweetSet): TweetSet = left.union(right.union(that.incl(elem)))
 
   def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet =
-    if (p(elem)) left.filterAcc(p, right.filterAcc(p, acc.incl(elem)))
-    else left.filterAcc(p, right.filterAcc(p, acc))
+    left.filterAcc(p, right.filterAcc(p, if(p(elem)) acc.incl(elem) else acc))
 
 
   /**
@@ -195,8 +213,10 @@ object GoogleVsApple {
   val google = List("android", "Android", "galaxy", "Galaxy", "nexus", "Nexus")
   val apple = List("ios", "iOS", "iphone", "iPhone", "ipad", "iPad")
 
-  lazy val googleTweets: TweetSet = ???
-  lazy val appleTweets: TweetSet = ???
+
+  lazy val googleTweets: TweetSet = google.foldRight[TweetSet](new Empty)((keyword:String, acc:TweetSet ) => allTweets.filter(tweet => tweet.text.contains(keyword)) union acc)
+//  lazy val googleTweets: TweetSet = allTweets
+  lazy val appleTweets: TweetSet = allTweets.filter(p => )
 
   /**
     * A list of all tweets mentioning a keyword from either apple or google,
