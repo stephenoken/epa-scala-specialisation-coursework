@@ -33,6 +33,10 @@ class HuffmanSuite extends FunSuite {
     assert(string2Chars("hello, world") === List('h', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd'))
   }
 
+  test("number of ooccurrences for each letter in \"racecar\"") {
+    assert(times("racecar".toList) == List(('r', 2), ('a', 2), ('c', 2), ('e', 1)))
+    assert(times("fool".toList) == List(('f', 1), ('o', 2), ('l', 1)))
+  }
 
   test("makeOrderedLeafList for some frequency table") {
     assert(makeOrderedLeafList(List(('t', 2), ('e', 1), ('x', 3))) === List(Leaf('e',1), Leaf('t',2), Leaf('x',3)))
@@ -44,6 +48,26 @@ class HuffmanSuite extends FunSuite {
     assert(combine(leaflist) === List(Fork(Leaf('e',1),Leaf('t',2),List('e', 't'),3), Leaf('x',4)))
   }
 
+  test("until list of trees is a combined singleton list") {
+    val leaflist = List(Leaf('e', 1), Leaf('t', 2), Leaf('x', 4))
+    assert(until(singleton, combine)(leaflist) == List(
+      Fork(
+        Fork(Leaf('e',1),Leaf('t',2),List('e', 't'),3),Leaf('x',4),List('e', 't', 'x'),7
+      ))
+    )
+  }
+
+  test("create codetree from \"hello world\""){
+    val charList = "abbac".toList
+    assert(createCodeTree(charList) ==  Fork(Fork(Leaf('c',1),Leaf('b',2),List('c', 'b'),3),Leaf('a',2),List('c', 'b', 'a'),5))
+
+  }
+
+  test("decode huffman tree") {
+    new TestTrees {
+      assert(decode(t1, List(1,0)) == List('b','a'))
+    }
+  }
 
   test("decode and encode a very short text should be identity") {
     new TestTrees {
