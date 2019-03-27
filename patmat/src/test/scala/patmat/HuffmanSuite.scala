@@ -59,7 +59,7 @@ class HuffmanSuite extends FunSuite {
 
   test("create codetree from \"hello world\""){
     val charList = "abbac".toList
-    assert(createCodeTree(charList) ==  Fork(Fork(Leaf('c',1),Leaf('b',2),List('c', 'b'),3),Leaf('a',2),List('c', 'b', 'a'),5))
+    assert(createCodeTree(charList) ==  Fork(Fork(Leaf('c',1),Leaf('a',2),List('c', 'a'),3),Leaf('b',2),List('c', 'a', 'b'),5))
 
   }
 
