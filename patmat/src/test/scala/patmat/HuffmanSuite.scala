@@ -70,7 +70,7 @@ class HuffmanSuite extends FunSuite {
   }
 
 
-  test("Should correctly encode secret back to it's original state") {
+  test("Should encode secret") {
     val code = decode(frenchCode, secret)
     assert(encode(frenchCode)(code) == secret)
   }
@@ -79,6 +79,17 @@ class HuffmanSuite extends FunSuite {
     new TestTrees {
       assert(decode(t1, encode(t1)("ab".toList)) === "ab".toList)
     }
+  }
+
+  test("Should convert code tree into code table") {
+    new TestTrees {
+      assert(convert(t2) == List(('a', List(0,0)), ('b', List(0,1)), ('d', List(1))))
+    }
+  }
+
+  test("Should quick encode secret") {
+    val code = decode(frenchCode, secret)
+    assert(quickEncode(frenchCode)(code) == secret)
   }
 
 }

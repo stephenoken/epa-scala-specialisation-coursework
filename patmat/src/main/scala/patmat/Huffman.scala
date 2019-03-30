@@ -1,5 +1,6 @@
 package patmat
 
+import scala.annotation.tailrec
 /**
   * Assignment 4: Huffman coding
   *
@@ -157,6 +158,7 @@ object Huffman {
     * the example invocation. Also define the return type of the `until` function.
     *  - try to find sensible parameter names for `xxx`, `yyy` and `zzz`.
     */
+  @tailrec
   def until(p: List[CodeTree] => Boolean, f: List[CodeTree] => List[CodeTree])(trees: List[CodeTree]): List[CodeTree] =
     if (p(trees)) trees
     else until(p, f)(f(trees))
@@ -251,7 +253,10 @@ object Huffman {
     * This function returns the bit sequence that represents the character `char` in
     * the code table `table`.
     */
-  def codeBits(table: CodeTable)(char: Char): List[Bit] = ???
+  def codeBits(table: CodeTable)(char: Char): List[Bit] = table match {
+    case (key, bits) :: xs => if (key == char) bits else codeBits(xs)(char)
+    case Nil => List()
+  }
 
   /**
     * Given a code tree, create a code table which contains, for every character in the
@@ -261,7 +266,20 @@ object Huffman {
     * a valid code tree that can be represented as a code table. Using the code tables of the
     * sub-trees, think of how to build the code table for the entire tree.
     */
-  def convert(tree: CodeTree): CodeTable = ???
+  def convert(tree: CodeTree): CodeTable = {
+
+    val encodeChar = (char: Char) => encode(tree)(List(char))
+
+    def encodeChars(chars: List[Char]): CodeTable = chars match {
+      case x :: xs => (x, encodeChar(x)) :: encodeChars(xs)
+      case Nil => List()
+    }
+
+    tree match {
+      case f: Fork => encodeChars(f.chars)
+      case l: Leaf => encodeChars(List(l.char))
+    }
+  }
 
   /**
     * This function takes two code tables and merges them into one. Depending on how you
@@ -276,5 +294,15 @@ object Huffman {
     * To speed up the encoding process, it first converts the code tree to a code table
     * and then uses it to perform the actual encoding.
     */
-  def quickEncode(tree: CodeTree)(text: List[Char]): List[Bit] = ???
+  def quickEncode(tree: CodeTree)(text: List[Char]): List[Bit] = {
+    val table = convert(tree)
+
+    def generateCodeBits(text: List[Char]): List[Bit] = text match {
+      case x :: xs => codeBits(table)(x) ++ generateCodeBits(xs)
+      case List(x) => codeBits(table)(x)
+      case Nil => List()
+    }
+
+    generateCodeBits(text)
+  }
 }
