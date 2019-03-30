@@ -1,7 +1,5 @@
 package patmat
 
-import common._
-
 /**
   * Assignment 4: Huffman coding
   *
@@ -181,44 +179,24 @@ object Huffman {
     * This function decodes the bit sequence `bits` using the code tree `tree` and returns
     * the resulting list of characters.
     */
-//  def decode(tree: CodeTree, bits: List[Bit]): List[Char] = {
-//
-//    def decodeChar(tree: CodeTree, bits: List[Bit]): (Char, List[Bit]) = tree match {
-//      case Fork(l, r, _, _) => bits match {
-//        case 1 :: xs => decodeChar(l, xs)
-//        case 0 :: xs => decodeChar(r, xs)
-//        case Nil => (' ', List())
-//      }
-//      case Leaf(c, _) => (c, bits.tail)
-//    }
-//
-//    if(bits.isEmpty) List()
-//    else decodeChar(tree, bits) match {
-//      case (char, rumpBits) => char :: decode(tree, rumpBits)
-//    }
-//
-//
-//  }
+
   def decode(tree: CodeTree, bits: List[Bit]): List[Char] = {
 
   def traverseCodeTree(tree: Huffman.CodeTree, bits: List[Huffman.Bit], chars: List[Char] = List()): List[Char] = {
     if(bits.isEmpty) chars
     else {
-      val (resultChars, rumpBits) = findLeafNode(tree, bits, chars)
-      traverseCodeTree(tree, rumpBits, resultChars)
+      val (char, rumpBits) = findLeafNode(tree, bits)
+      char :: traverseCodeTree(tree, rumpBits)
     }
   }
 
-  def findLeafNode(tree: Huffman.CodeTree, bits: List[Huffman.Bit], accumulator: List[Char] = List()): (List[Char], List[Bit]) = tree match {
-    case Leaf(c, _) => (accumulator ::: List(c), bits)
+  def findLeafNode(tree: Huffman.CodeTree, bits: List[Huffman.Bit]): (Char, List[Bit]) = tree match {
+    case Leaf(c, _) => (c, bits)
     case Fork(l, r, _, _) => bits match {
-      case 0 :: xs => {
-        findLeafNode(l, xs, accumulator)
-      }
-      case 1 :: xs => {
-        findLeafNode(r, xs, accumulator)
-      }
-      case Nil => (accumulator, bits)
+      case 0 :: xs =>
+        findLeafNode(l, xs)
+      case 1 :: xs =>
+        findLeafNode(r, xs)
     }
   }
 
@@ -251,7 +229,19 @@ object Huffman {
     * This function encodes `text` using the code tree `tree`
     * into a sequence of bits.
     */
-  def encode(tree: CodeTree)(text: List[Char]): List[Bit] =
+  def encode(tree: CodeTree)(text: List[Char]): List[Bit] = {
+
+    def traverseTree(tree: CodeTree, char: Char): List[Bit] = tree match {
+      case Fork(l :Leaf, r, _, _) => if (l.char == char) List(0) else 1 :: traverseTree(r, char)
+      case Fork(l: Fork, r, _, _) => if (l.chars.contains(char)) 0 :: traverseTree(l, char) else 1 :: traverseTree(r, char)
+      case _ => List()
+    }
+
+    text match {
+      case Nil => List()
+      case x :: xs => traverseTree(tree, x) ++ encode(tree)(xs)
+    }
+  }
 
   // Part 4b: Encoding using code table
 
