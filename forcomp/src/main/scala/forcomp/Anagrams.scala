@@ -170,7 +170,8 @@ def occurrenceAnagrams(occurrences: Occurrences): List[Sentence] =
     for {
       combo <- combinations(occurrences)
       word <- dictionaryByOccurrences(combo)
-      sentence <- occurrenceAnagrams(subtract(occurrences, combo))
+      sentence <- occurrenceAnagrams(subtract(occurrences, wordOccurrences(word)))
+      if combo.nonEmpty
     } yield word :: sentence
   }
 
