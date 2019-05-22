@@ -288,3 +288,236 @@ def processNewLogs(logFileName: String) {
 ```
 
 **Is this OK?**
+
+**It will be very inefficient!!**
+**Why?** The join operation, called each time processNewLogs is invoked, does not know anything about how the keys are partitioned in the datasets.
+
+By default, this operation will hash all the keys of both datasets, sending elements with the same key hash across the network to the same machine with the same key on that machine. **Even though userData doesn't change!!** ![partition data example](./resources/partition-data-partitionBy-example-1.png)
+
+Fixingthis is easy. Just use partitionBy on the big userData RDD at the start of the program!
+
+Therefore, userDate becomes:
+```
+val userData = sc.seqeunceFile[UserId, UserInfo]("hdfs://...")
+  .partitionBy(new HashPartitioner(100)) // create 100 partitions
+  .persist()
+```
+
+Since we called partitionBy when building userData, Spark will know that it is hash-partitioned, and calls to join on it will take advantage of this information.
+
+In particular, when we call userData.join(events), Spark will shuffle only the events RDD, sending events wit heach particular UserID to the machine that contains the corresponding hash partition of userData.
+![partition data example](./resources/partition-data-partitionBy-example-2.png)
+Now that userData is pre-partitioned, Sprk will shuffle only the events RDD, sending events with each particular UserId to the machine that contains the corresponding hash partition of UserData.
+
+### Back to Shuffling
+
+Recall our example using groupByKey:
+```
+val purchasePerCust =
+  purchasesRDD.map(p => (p.customerId, p.price))
+  .groupByKey()
+```
+Grouping all values of key-value pairs with the same key requires collecting all key-value pairs with the same key on the same machine.
+
+Grouping is done using a hash partitioner with default parameters.
+
+The result RDD, purchasePerCust, is configured to use the hash partitioner that was used to construct it.
+
+**Rule of thumb:** a shuffle can occur when the resulting RDD depends on other elements from the same RDD or another RDD.
+
+You can also figure out whether a shuffle has been planned/ executed via:
+
+1. The return type of certains transformations, e.g,
+`org.apache.spark.rdd.RDD[(String, Int)] = ShuffledRDD[366]`
+
+2. Using function toDebugString to see its execution plan:
+```
+partitioned.reduceByKey((v1, v2) => ...).toDebugString()
+
+res9: String =
+(8) MapPartitionsRDD[622] at reduceByKey at <console>:49 []
+ |  ShuffledRDD[615] at partitionBy at <console>: 48
+ |    CachedPartitions: 8; MemorySize: 1754.9 MB; DiskSize: 0.0 B
+ ```
+
+### Operations that might cause a shuffle
+
+* cogroup
+* groupWith
+* join
+* leftOuterJoin
+* rightOuterJoin
+* groupByKey
+* reduceByKey
+* combineByKey
+* distinct
+* intersection
+* repartition
+* coalesce
+
+There are a few ways to use operations that might cause a shuffle and to still avoid much or all network shuffling.
+
+**2 Examples**
+1. reduceByKey running on a pre-partitioned RDD will cause the values to be computed locally, requiring only the final reduced value to be sent from the worker to the driver.
+2. join called on two RDDs that are pre-partitioned with the same partitioner and cached on the same machine will casue the join to be computed locally, with no shuffling across the networks.
+
+### Shuffles Happen: Key Take away
+
+**How your data is organised on the cluster, and what operations you're doing with it matters!**
+
+We've seen speedups of up to 10 times on small examples just by trying to ensure that data is not transmitted over the network to other machines.
+
+This can hugely affect your day job if you're trying to run a job that should run in 4 hours, but due to missed opportunities to partition data or optimise away a shuffle, it cold take 40 hours instead.
+
+---
+## Wide vs Narrow Dependencies
+
+ **Some transformations significantly more expensive (latency) than others**
+ *Eg. requiring lots of data to be transferred over the network, sometimes unnecessarily*
+
+ In the past sessions:
+ * we learned that shuffling sometimes happens on some transformations.
+
+ In this session:
+
+* we'll look at how RDDs are represented.
+* we'll dive into how and when Spark decides it must shuffle data.
+* we'll see how these dependencies make fault tolerance possible.
+
+### Lineages
+Computations on RDDs are represented as **lineage graph**; a Directed Acyclic Graph (DAG) representing the computations done on the RDD.
+
+```
+val rdd = sc.textFile(...)
+val filtered = rdd.map(...)
+                .filter(...)
+                .persist()
+val count = filtered.count()
+val reduced = filtered.reduce(...)  
+```
+![dag 1](./resources/dag-1.png)
+
+**Spark represents RDDs in terms of these lineage graphs/DAGs**
+*In fact, this is the representation/DAG is what Spark analysis to do optimisations*
+
+### How are RDDs represented?
+
+RDDs are made up of 2 important parts.
+(but are made up of 4 parts in total)
+
+RDDs are represented as:
+* Partitions. Atomic pieces of the dataset. One or many per compute node
+
+![dag 2](./resources/dag-2.png)
+* Dependencies. Models relationship between this RDD and its partitions with the RDD9s) it was derived from.
+
+![dag 2](./resources/dag-3.png)
+* A function for computing the dataset based on its parent RDDs.
+
+![dag 2](./resources/dag-4.png)
+* Metadata about its partitioning scheme and data placement.
+
+Previously, we arrived at the following rule of thumb for trying to determine when a shuffle might occur:
+
+> **Rule of thumb:** a shuffle can occur when the resulting RDD depends on other elements from the same RDD or antoher RDD.
+
+In fact, RDD dependencies encode when data must move across the network.
+
+**Transformations casue shuffles.** Transformations can have two kinds of dependencies:
+1. Narrow Dependencies
+2. Wide Dependencies
+
+### Narrow Dependencies vs Wide Dependencies
+
+**Narrow Dependencies**
+Each partition of the parent RDD is ued by at most one partition of the child RDD.
+*Fast! No shuffle necessary. Optimisations like pipelining possible.*
+
+![narrow dependencies](./resources/narrow-dep-1.png)
+
+ **Wide Dependencies**
+ Each paritition of the parent RDD may be depeneded on by multiple child partitions.
+*Slow! Requires all or some data to be shuffled over the network.*
+
+![wide dependencies](./resources/wide-dep-1.png)
+
+![wide narrow dependencies](./resources/wide-narrow-dep-1.png)
+
+Since G would be derived from B, which itself is derived from a groupBy and a shuffle on A, you could imagine that we will have already co-partitioned and cached B in memory following the call to groupBy.
+
+**Part of this join is thus a narrow transformation.**
+
+![wide narrow dependencies](./resources/wide-narrow-dep-2.png)
+
+
+### Which transformations have which kind of dependency?
+
+**Transformatons with narrow dependencies:**
+* mapValues
+* mapValues
+* flatMap
+* filter
+* mapPartitions
+* mapPartitionsWithIndex
+
+**Transformations with wide dependencies:**
+(might cause a shuffle)
+* cogroup
+* groupWith
+* join
+* leftOuterJoin
+* rightOuterJoin
+* groupByKey
+* reduceByKey
+* combineByKey
+* distinct
+* intersection
+* repartition
+* coalesce
+
+### How can I find out?
+
+**dependencies** methods on RDDs
+
+dependencies returns a sequence of Dependency objects, which are actually the dependencies used by Spark's scheduler to know how this RDD depends on other RDDs.
+
+The sorts of dependency objects the dependencies method may return include
+
+**Narrow dependecy objects:**
+* OneToOneDependency
+* PruneDependency
+* RangeDependency
+
+**Wide dependency objects:**
+* ShuffleDependency
+
+![wide narrow dependecy](./resources/wide-narrow-dep-3.png)
+
+
+**toDebugString** method on RDDs.
+
+toDebugString prints out a visualistaion of the RDD's lineage, and other information pertinent to scheduling. For example, indentations in the output separate groups of narrow transformations that may be pipelined called stages.
+
+![wide narrow dependecy](./resources/wide-narrow-dep-4.png)
+
+### Lineages and Fault Tolerance
+
+**Lineage graphs are the key to fault tolerance in Spark.**
+Ideas from functional programming enable fault tolerance in Spark
+
+* RDDs are immutable.
+* We use higher-order functions like map, filter, flatMap to do functional transformations on this immutable data.
+* A function for computing the dataset based on its parent RDDs also is part of an RDD's representation
+
+**Along with keeping track of dependency information between partitions as well, this allows us to:**
+
+*Recover from failures by recomputing lost partitions from lineage graphs.*
+
+> Thus we get fault tolerance without the need to write to disk!!
+
+![DAG 5](./resources/dag-5.png)
+
+Recomputing missing partitions fast for narrow dependencies. But slow for wide dependencies!
+
+
+![DAG 6](./resources/dag-6.png)
