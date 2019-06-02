@@ -341,4 +341,131 @@ setSeginal(sig: Boolean): Unit
   Modifies the value of the signal transported by the wire.
 
 addaction(a: Action): unit
-  Attaches the specific procedure to the actions of the wire. All of the attached actions are executed at each change of the transported signal. 
+  Attaches the specific procedure to the actions of the wire. All of the attached actions are executed at each change of the transported signal.
+
+### Implementing Wires
+Here's an implementation of the class Wire:
+```
+class Wire {
+  private var sigval = false
+  private var actions: List[Action] = List()
+  def getSignal: Boolean = sigVal
+  def setSignal(s: Boolean): Unit =
+    if(s != sigVal){
+      sigVal = s
+      actions foreach (_())
+    }
+    def addAction(a: Action): Unit = {
+      actions = a :: actions
+      a()
+    }
+}
+```
+
+The state of the wire is modelled by tow variables:
+* sigVal represents the current value of the signal.
+* actions represents the actions currently attached to the wire.
+
+### The inverter
+We implement the inverter by installing an action on its input wire.
+
+This action produces the inverse of the input signal on the output wire.
+
+The change must be effective after a delay of InverterDelay units of simulated time.
+
+```
+def inverter(inputL Wire, output: Wire): Unit = {
+  def invertAction(): Unit = {
+    val inputSig = input.getSignal
+    afterDelay(InvertDelay) { output setSignal !inputSig}
+  }
+
+  input addAction invertAction
+}
+```
+
+### The AND Gate
+
+The AND gate is implemented in a similar way.
+
+The action of an AND gate produces the conjunction of input signals on the output wire.
+
+This happens after a delay of AndGateDelay units of simulated time.
+
+```
+def andGate(in1: Wire, in2: Wire, output: Wire): Wire = {
+  def andAction(): Unit = {
+    val in1Sig = in1.getSignal
+    val in2Sig = in2Sig.getSignal
+    afterDelay(AndGateDelay){ output setSignal (in1Sig & in2Sig)}
+  }
+  in1 addAction andAction
+  in2 addAction andAction
+}
+```
+
+### THe Or gate
+
+The OR gate is implemented analogously to the AND gate.
+
+```
+def orGate(in1: Wire, in2: Wire, output: Wire): Wire = {
+  def orAction(): Unit = {
+    val in1Sig = in1.getSignal
+    val in2Sig = in2Sig.getSignal
+    afterDelay(AndGateDelay){ output setSignal (in1Sig | in2Sig)}
+  }
+  in1 addAction orAction
+  in2 addAction orAction
+}
+```
+
+---
+## Discrete Event Simulation
+
+### The simulation trait
+All we have left to do now is to implement the Simulation trait.
+
+The idea is to keep in every instance of the simulation trait an agenda of actions to perform.
+The agenda is a list of simulated events. Each event consists of an action and the time when it must be produced.
+
+The agenda list is sorted in such a way that the actions to be performed first are in the beginning.
+
+```
+trait Simulation {
+  type Action = () => Unit
+  case class Event(time: Int, action: Action)
+  private type Agenda = List[Event]
+  private var agenda: Agenda = List()
+}
+```
+
+### Handle Time
+
+There is also a private variable, curtime, that contains the current simulation time:
+`private var curtime = 0`
+
+It can be accessed with a getter function currentTime:
+
+`def currentTime: Int = curTime`
+
+An application of the afterDelay(delay)(block) method inserts the task
+`Event(curtime + delay, () => block)`
+
+into the agenda list at the right position.
+
+```
+def afterDelay(delay: Int)(block: => Unit): Unit = {
+  val item = Event(currentTime + delay, () => block)
+  agenda = insert(agenda, item)
+}
+```
+The insert function is straightforward:
+```
+private def insert(ag: List[Event], item: Event): List[Event] = ag match {
+  case first :: rest if first.time <= item.time =>
+    first :: insert(rest, item)
+  case _ =>
+    item :: ag
+}
+```
