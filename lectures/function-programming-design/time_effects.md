@@ -291,4 +291,99 @@ Do they yield the same value?
 - [ ] yes
 - [x] no
 
-Why?? In the first code fragment we're taking the signal `num()` and updating the value in the signal. Where as in the second, we are updating the signal itself into a new signal. The new signal does not have a relationship with the twice signal. 
+Why?? In the first code fragment we're taking the signal `num()` and updating the value in the signal. Where as in the second, we are updating the signal itself into a new signal. The new signal does not have a relationship with the twice signal.
+
+## A simple FRP implmentation
+
+We now develop a simple implementation of Signals and Vars, which together make up the basis of our approach to functional reactive programming.
+
+The classes are assumed to be in a package frp
+
+The user-facing APIs are summarised below:
+
+```
+class Signal[T](expr: => T) {
+  def apply(): T = ???
+}
+
+object Signal {
+  def apply[T](expr: => T) = new Signal(expr)
+}
+```
+
+```
+class Var[T](expr: => T) extends Signal[T](expr){
+
+  def update(expr: => T): Unit = ???
+
+}
+
+object Var {
+  def apply[T](expr: => T) = new Var(expr)
+}
+```
+
+
+### Implementation Idea
+
+Each signal maintains:
+
+* its current value
+* the current expression that defines the signal value
+* a set of observers: the other signals that depend on its value
+
+Then, if the signal changes, all observers need to be re-evaluated.
+
+### Dependency Maintenance
+
+How do we record dependencies in observers?
+
+* when evaluating a signal-valued expression, need to know which signal caller gets defined or updated by the expression.
+* If we know that , then executing a sig() means adding caller to the observers of sig.
+* When signal sig's value changes, all previously observing signals are re-evaluated and the set sig.observers is cleared.
+* Re-evaluation will re-enter a calling signal caller in sig.observers, as long as caller's value still depends on sig.
+
+### Who's Calling?
+
+How do we find out on whose behalf a signal expression is evaluated?
+
+One simple (simplistic?) way to do this is to maintain a global data structure referring to the current caller. (We will discuss and refine this later).
+
+That data structure is accessed in a stack-like fashion because one evaluation of a signal might trigger others.
+
+### Set up in Object Signal
+
+We also evaluate signal expressions at the top-level when there is no other signal that;s defined or updated.
+
+We use the "sentinel" object NoSignal as the caller for these expressions.
+
+### Revaluating Callers
+
+A signal's current value can change when
+* somebody calls an update operation on a Var, or
+* the value of a dependent signal changes
+
+Propagating requires a more refined implementation of computeValue:
+
+```
+protected def computeValue(): Unit = {
+  val newValue = caller.withValue(this)(myExper())
+  if(myValue != newValue) {
+    myValue = newValue
+    val obs = observers
+    observers = Set()
+    obs.foreach(_.computeValue())
+  }
+}
+```
+
+### Discussion
+
+Our implementation of FRP is quite stunning in its simplicity.
+
+But you might argue that it is too simplistic.
+
+In particular, it makes use of the worst kind of state: global state.
+
+One immediate problem is: What happens if we try to evaluate several signal expressions in parallel?
+* The caller signal will become "global" by concurrent updates.
